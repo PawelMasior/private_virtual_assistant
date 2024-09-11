@@ -159,19 +159,19 @@ autogen.register_function(web_page, caller=agent_researcher, executor=executor,
     """
 )
 
-autogen.register_function(phone_sms_send, caller=agent_secretary, executor=executor,
-    name="phone_sms_send",
-    description="""
-    Sends SMS.
-    """
-)
+# autogen.register_function(phone_sms_send, caller=agent_secretary, executor=executor,
+#     name="phone_sms_send",
+#     description="""
+#     Sends SMS.
+#     """
+# )
 
-autogen.register_function(sms_inbox, caller=agent_secretary, executor=executor,
-    name="sms_inbox",
-    description="""
-    Get SMS from inbox.
-    """
-)
+# autogen.register_function(sms_inbox, caller=agent_secretary, executor=executor,
+#     name="sms_inbox",
+#     description="""
+#     Get SMS from inbox.
+#     """
+# )
 
 autogen.register_function(save_report, caller=agent_secretary, executor=executor,
     name="save_report",

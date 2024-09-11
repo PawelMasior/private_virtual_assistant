@@ -165,10 +165,10 @@ cython_debug/
 #folders
 __pycache__/
 .cache/
-# monitor/actions/*
-# monitor/prtscn/*
-# monitor/filter/*
-# review/reports/*
+monitor/actions/*
+monitor/prtscn/*
+monitor/filter/*
+review/reports/*
 review/logs.db
 settings/ai-agents-project-key.json
 

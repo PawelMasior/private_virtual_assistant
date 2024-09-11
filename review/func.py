@@ -13,7 +13,7 @@ import copy
 import sqlite3
 from pprint import pprint
 from types import SimpleNamespace
-from datetime import datetime
+from datetime import datetime, timedelta
 from fpdf import FPDF
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -50,6 +50,15 @@ def tbl_data(dbname = dbname, tbl="chat_completions", filter_col='session_id', f
     con.close()
     return data
 
+def tbl_data_t(dbname = dbname, tbl="events", time_min_str='', time_max_str=''):
+    con = sqlite3.connect(dbname)
+    query = f"""SELECT * FROM {tbl} WHERE timestamp>='{time_min_str}' AND timestamp>='{time_min_str}'""" #
+    cursor = con.execute(query)
+    rows = cursor.fetchall()
+    column_names = [description[0] for description in cursor.description]
+    data = [dict(zip(column_names, row)) for row in rows]
+    con.close()
+    return data
 
 def db_data(dbname, logging_session_id):
     # agents
@@ -71,6 +80,7 @@ def db_data(dbname, logging_session_id):
     df_a['id_session'] = df_a['id_session'].cumsum().clip(lower=1)
     df_a['timestamp'] = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') for t in df_a['timestamp']]
     df_a['end_time'] = df_a['timestamp']
+    # print('df_a', df_a['timestamp'].min(), df_a['timestamp'].max())
     
     # conversations
     chat_completions = tbl_data(dbname = dbname, tbl="chat_completions", filter_col='session_id', filter_val=logging_session_id)
@@ -93,6 +103,7 @@ def db_data(dbname, logging_session_id):
     df_c_c['end_time'] = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') for t in df_c_c['end_time']]
     df_c_c['time_sec'] = (df_c_c['end_time'] - df_c_c['start_time']).dt.total_seconds()
     df_c_c = df_c_c.sort_values(by=['end_time']).reset_index(drop=True)
+    # print('df_c_c', df_c_c['start_time'].min(), df_c_c['end_time'].max())
     
     # sequential
     df_s = df_a.groupby(['id_session']).agg({'timestamp': 'first',
@@ -102,51 +113,74 @@ def db_data(dbname, logging_session_id):
     df_s['message_start'] = [df_c_c.iloc[i]['message_start'] for i in df_s['idx']]
     df_s['message_end'] = [df_c_c.iloc[i]['message_end'] for i in df_s['end']]
     
-    # oai_wrappers
-    df_o_c = pd.DataFrame(tbl_data(tbl="oai_wrappers", filter_col='session_id', filter_val=logging_session_id))
-    df_o_c['timestamp'] = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') for t in df_o_c['timestamp']]
-    
-    # oai_clients
-    df_o_w = pd.DataFrame(tbl_data(tbl="oai_clients", filter_col='session_id', filter_val=logging_session_id))
-    df_o_w['timestamp'] = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') for t in df_o_w['timestamp']]
-    
-    # version
-    data, go, i, d = [], True, 1, [0]
-    while len(d):
-        d = tbl_data(dbname = dbname, tbl="version", filter_col='id', filter_val=i)
-        if len(d): data += d
-        i+=1
-    df_v = pd.DataFrame(data)
-    
+    time_min_str = (df_a['timestamp'].min()-timedelta(seconds=2)).strftime('%Y-%m-%d %H:%M:%S.%f')
+    time_max_str = (df_c_c['end_time'].max()+timedelta(seconds=2)).strftime('%Y-%m-%d %H:%M:%S.%f')
+
     # events
-    data, go, i, d, data_json_state = [], True, 1, [0],[]
-    while len(d):
-        d = tbl_data(dbname = dbname, tbl="events", filter_col='id', filter_val=i)
-        if len(d): 
-            data_json_state += [json.loads(d[0].pop('json_state'))]
-            data += d
-        i+=1
-    df_ev = pd.DataFrame(data)
-    df_ev = df_ev.merge(pd.DataFrame(data_json_state), left_index=True, right_index=True, how='left')
+    data_events = tbl_data_t(dbname, "events", time_min_str, time_max_str)
+    for i,d in enumerate(data_events):
+        d_new = {**d, **json.loads(d['json_state'])}
+        d_new.pop('json_state')
+        data_events[i] = d_new
+    df_ev = pd.DataFrame(data_events)
     df_ev['timestamp'] = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') for t in df_ev['timestamp']]
     id_step_event = [1] 
     for i,r_0 in df_ev.iloc[1:,:].iterrows():
         r_1 = df_ev.iloc[i-1]
-        if r_1['source_name'] == r_0['source_name']:
-            id_step_event += [id_step_event[-1]]
+        if r_1['source_name'] == r_0['source_name']: id_step_event += [id_step_event[-1]]
         else: id_step_event += [id_step_event[-1]+1]
     df_ev['id_step_event'] = id_step_event
-    
+        
     # function_calls
-    function_calls = []
+    data_function_calls = []
     for source_name in df_ev['source_name'].unique()[:]:
         e = tbl_data(dbname = dbname, tbl="function_calls", filter_col='source_name', filter_val=source_name)
-        function_calls += e
-    df_f_c = pd.DataFrame(function_calls)
+        data_function_calls += e
+    df_f_c = pd.DataFrame(data_function_calls)
     df_f_c['timestamp'] = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') for t in df_f_c['timestamp']]
     return df_a, df_c_c, df_s, df_ev, df_f_c
 
+# =============================================================================
+#     data, go, i, d, data_json_state = [], True, 1, [0],[]
+#     while len(d):
+#         d = tbl_data(dbname = dbname, tbl="events", filter_col='id', filter_val=i)
+#         if len(d): 
+#             data_json_state += [json.loads(d[0].pop('json_state'))]
+#             data += d
+#         i+=1
+#     df_ev = pd.DataFrame(data)
+#     df_ev = df_ev.merge(pd.DataFrame(data_json_state), left_index=True, right_index=True, how='left')
+#     df_ev['timestamp'] = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') for t in df_ev['timestamp']]
+#     id_step_event = [1] 
+#     for i,r_0 in df_ev.iloc[1:,:].iterrows():
+#         r_1 = df_ev.iloc[i-1]
+#         if r_1['source_name'] == r_0['source_name']:
+#             id_step_event += [id_step_event[-1]]
+#         else: id_step_event += [id_step_event[-1]+1]
+#     df_ev['id_step_event'] = id_step_event
+#     print('df_ev', df_ev['timestamp'].min(), df_ev['timestamp'].max())
+# =============================================================================
 
+
+    
+# =============================================================================
+#     df_o_c = pd.DataFrame(tbl_data(tbl="oai_clients", filter_col='session_id', filter_val=logging_session_id))
+#     df_o_c['timestamp'] = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') for t in df_o_c['timestamp']]
+#     print('df_o_c', df_o_c['timestamp'].min(), df_o_c['timestamp'].max())
+# 
+#     df_o_w = pd.DataFrame(tbl_data(tbl="oai_wrappers", filter_col='session_id', filter_val=logging_session_id))
+#     df_o_w['timestamp'] = [datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f') for t in df_o_w['timestamp']]
+#     print('df_o_w', df_o_w['timestamp'].min(), df_o_w['timestamp'].max())
+# =============================================================================
+# =============================================================================
+#     # version
+#     data, go, i, d = [], True, 1, [0]
+#     while len(d):
+#         d = tbl_data(dbname = dbname, tbl="version", filter_col='id', filter_val=i)
+#         if len(d): data += d
+#         i+=1
+#     df_v = pd.DataFrame(data)
+# =============================================================================
 def plt_bar(df_c_c, df_s, color_map, group='idx', measure='cost'):
     df_l = df_c_c
     df_l['color'] = df_l['source_name'].map(color_map)    
@@ -344,7 +378,7 @@ def _ttl(pdf, ttl, x=10, w=190, y=44, f='', s=12, a='C', h=6, c=plt_c['stone-900
     return pdf
 
 def pdf_compose(task, Plan, chat_results):
-    print(f"chat_results {chat_results}")
+    #print(f"chat_results {chat_results}")
     now = f'{datetime.now().strftime("%Y%m%d_%H%M%S")}'
     now_str = f'{datetime.now().strftime("%H:%M:%S, %d %b%Y")}'
     

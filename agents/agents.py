@@ -67,7 +67,6 @@ agent_secretary = autogen.ConversableAgent(
     ## You are Secretary.
 
     ### Responsibilities
-    - **Send and read SMS.**
     - **Wrap up final information into raport.md**
 
     ### Reply 'TERMINATE' when the task is complete.
@@ -77,7 +76,7 @@ agent_secretary = autogen.ConversableAgent(
     max_consecutive_auto_reply=3,
     human_input_mode="NEVER",
 )
-# - **Send SMS**
+# - **Send and read SMS.**
 # - **Provide user information**
 
 agent_browser = autogen.ConversableAgent(

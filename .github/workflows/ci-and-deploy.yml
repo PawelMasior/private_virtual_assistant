@@ -1,0 +1,50 @@
+# name: Build and Deploy Virtual Assistant
+
+# on:
+#   push:
+#     branches:
+#       - main
+#   workflow_dispatch:
+
+# jobs:
+#   build-and-deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+
+#     - name: Set up Python 3.11.3
+#       uses: actions/setup-python@v4
+#       with:
+#         python-version: '3.11.3'
+
+#     - name: Install python3-venv
+#       run: sudo apt-get update && sudo apt-get install -y python3-venv
+
+#     - name: List files in repository root
+#       run: ls -la $GITHUB_WORKSPACE
+
+#     - name: List contents of new_deploy folder
+#       run: |
+#         echo "Listing contents of new_deploy directory:"
+#         ls -la $GITHUB_WORKSPACE/new_deploy || echo "new_deploy directory not found or empty."
+
+#     - name: Create and populate new_deploy directory
+#       run: |
+#         echo "Creating new_deploy directory and adding test file..."
+#         mkdir -p $GITHUB_WORKSPACE/new_deploy
+#         echo "This is a test file" > $GITHUB_WORKSPACE/new_deploy/test_file.txt
+
+#     - name: Install dependencies
+#       run: |
+#         cd $GITHUB_WORKSPACE
+#         python -m venv venv
+#         source venv/bin/activate
+#         pip install --no-cache-dir -r requirements.txt
+
+#     - name: Run deploy script
+#       run: |
+#         cd $GITHUB_WORKSPACE
+#         chmod +x deploy.sh
+#         ./deploy.sh
